@@ -115,7 +115,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Return the combined results with cache control headers
+    // Return the combined results with no-cache headers to prevent stale images
     return NextResponse.json(
       {
         results: allResults,
@@ -124,7 +124,9 @@ export async function GET(request: NextRequest) {
       },
       {
         headers: {
-          'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400'
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
         }
       }
     );

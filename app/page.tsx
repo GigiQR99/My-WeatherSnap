@@ -259,7 +259,10 @@ export default function Home() {
               />
 
               {/* City Image Card */}
-              <CityImageCard cityName={weatherData.location.name} />
+              <CityImageCard 
+                key={`${weatherData.location.name}-${weatherData.location.country}`} 
+                cityName={weatherData.location.name} 
+              />
             </div>
           </div>
         )}
