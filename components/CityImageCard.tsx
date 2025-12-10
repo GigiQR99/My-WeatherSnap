@@ -45,39 +45,65 @@ function selectBestImage(photos: UnsplashPhoto[], cityName: string): UnsplashPho
     'landmark', 'skyline', 'tower', 'bridge', 'cathedral', 'famous',
     'downtown', 'harbor', 'temple', 'beach', 'castle', 'monument',
     'architecture', 'cityscape', 'panorama', 'aerial', 'view',
-    'iconic', 'historic', 'palace', 'square', 'plaza'
+    'iconic', 'historic', 'palace', 'square', 'plaza', 'building',
+    'city', 'urban', 'statue', 'memorial', 'gate', 'fortress'
   ];
   
   const avoidKeywords = [
     'interior', 'indoor', 'room', 'office', 'restaurant', 'cafe',
-    'food', 'person', 'people', 'close-up', 'closeup', 'abstract'
+    'food', 'person', 'people', 'close-up', 'closeup', 'abstract',
+    'man', 'woman', 'child', 'crowd', 'portrait', 'face', 'animal',
+    'dog', 'cat', 'bird', 'pet', 'wildlife', 'human', 'tourist'
   ];
   
   const scoredPhotos = photos.map(photo => {
     let score = 0;
     const description = ((photo.description || '') + ' ' + (photo.alt_description || '')).toLowerCase();
     
-    if (description.includes(cityName.toLowerCase())) score += 60;
-    iconicKeywords.forEach(keyword => { if (description.includes(keyword)) score += 15; });
-    avoidKeywords.forEach(keyword => { if (description.includes(keyword)) score -= 40; });
+    // Heavily prioritize city name in description
+    if (description.includes(cityName.toLowerCase())) score += 100;
     
+    // Add points for iconic keywords
+    iconicKeywords.forEach(keyword => { 
+      if (description.includes(keyword)) score += 20; 
+    });
+    
+    // Heavily penalize unwanted content (people, animals, etc.)
+    avoidKeywords.forEach(keyword => { 
+      if (description.includes(keyword)) score -= 100; 
+    });
+    
+    // Prioritize highly liked photos (popular = likely iconic)
     if (photo.likes && photo.likes > 100) {
-      score += 50;
-      if (photo.likes > 500) score += 30;
-      if (photo.likes > 1000) score += 20;
+      score += 60;
+      if (photo.likes > 500) score += 40;
+      if (photo.likes > 1000) score += 30;
+      if (photo.likes > 2000) score += 20;
     }
     
-    score += Math.min(photo.likes ? photo.likes / 50 : 0, 30);
+    // Additional score based on total likes
+    score += Math.min(photo.likes ? photo.likes / 40 : 0, 50);
     
-    if (photo.width && photo.width > 3000) score += 15;
-    if (photo.height && photo.height > 3000) score += 15;
-    if (photo.width && photo.width < 1920) score -= 30;
-    if (photo.height && photo.height < 1080) score -= 30;
+    // Prefer high-resolution images
+    if (photo.width && photo.width > 3000) score += 20;
+    if (photo.height && photo.height > 2000) score += 20;
+    if (photo.width && photo.width < 1920) score -= 40;
+    if (photo.height && photo.height < 1080) score -= 40;
     
     return { photo, score };
   });
   
+  // Sort by score (highest first)
   scoredPhotos.sort((a, b) => b.score - a.score);
+  
+  // Log top 3 for debugging
+  console.log('Top 3 scored images:', scoredPhotos.slice(0, 3).map(p => ({
+    id: p.photo.id,
+    score: p.score,
+    likes: p.photo.likes,
+    description: p.photo.description || p.photo.alt_description
+  })));
+  
   return scoredPhotos[0].photo;
 }
 
@@ -90,23 +116,36 @@ export default function CityImageCard({ cityName }: CityImageCardProps) {
   useEffect(() => {
     // Function to fetch an iconic city photo from Unsplash via our secure API route
     const fetchCityImage = async () => {
+      // Clear previous image and reset state when city changes
+      setImageData(null);
       setIsLoading(true);
       setError(null);
       
+      console.log(`Fetching image for city: ${cityName}`);
+      
       try {
-        // Call our server-side API route instead of Unsplash directly
-        const response = await fetch(`/api/unsplash?city=${encodeURIComponent(cityName)}`);
+        // Call our server-side API route with cache-busting timestamp
+        const timestamp = new Date().getTime();
+        const response = await fetch(
+          `/api/unsplash?city=${encodeURIComponent(cityName)}&t=${timestamp}`,
+          {
+            cache: 'no-store' // Prevent browser caching
+          }
+        );
         
         if (!response.ok) {
           const errorData = await response.json();
+          console.error('API error:', errorData);
           throw new Error(errorData.error || 'Failed to fetch images');
         }
         
         const data = await response.json();
+        console.log(`Received ${data.results?.length || 0} images for ${cityName}`);
         
         // Check if we got results
         if (data.results && data.results.length > 0) {
           const bestImage = selectBestImage(data.results, cityName);
+          console.log(`Selected best image for ${cityName}:`, bestImage.id, bestImage.description || bestImage.alt_description);
           setImageData(bestImage);
           setError(null);
         } else {
@@ -114,8 +153,8 @@ export default function CityImageCard({ cityName }: CityImageCardProps) {
         }
         
       } catch (err) {
-        console.error('Error fetching city image:', err);
-        setError('Failed to load image. Using fallback.');
+        console.error(`Error fetching city image for ${cityName}:`, err);
+        setError(`Failed to load ${cityName} image. Using fallback.`);
         
         // Fallback: Beautiful scenic default image
         setImageData({
@@ -213,7 +252,7 @@ export default function CityImageCard({ cityName }: CityImageCardProps) {
             <span>Photo by</span>
             {/* Link to photographer's Unsplash profile */}
             <a
-              href={`${imageData.user.links.html}?utm_source=weather_dashboard&utm_medium=referral`}
+              href={`${imageData.user.links.html}?utm_source=weathersnap&utm_medium=referral`}
               target="_blank"
               rel="noopener noreferrer"
               className="font-medium text-blue-600 dark:text-blue-400 hover:underline"
@@ -223,7 +262,7 @@ export default function CityImageCard({ cityName }: CityImageCardProps) {
             <span>on</span>
             {/* Link to Unsplash */}
             <a
-              href="https://unsplash.com?utm_source=weather_dashboard&utm_medium=referral"
+              href="https://unsplash.com?utm_source=weathersnap&utm_medium=referral"
               target="_blank"
               rel="noopener noreferrer"
               className="font-medium text-blue-600 dark:text-blue-400 hover:underline"

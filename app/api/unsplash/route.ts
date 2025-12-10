@@ -58,8 +58,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Build the search query
-    const searchQuery = `${city} skyline landmark famous travel`;
+    // Build the search query with more specific landmark terms
+    const searchQuery = `${city} landmark iconic famous architecture monument`;
 
     // Fetch BOTH landscape and portrait images in parallel
     const [landscapeResponse, portraitResponse] = await Promise.all([
@@ -115,12 +115,19 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Return the combined results
-    return NextResponse.json({
-      results: allResults,
-      total: landscapeData.total + portraitData.total,
-      city
-    });
+    // Return the combined results with cache control headers
+    return NextResponse.json(
+      {
+        results: allResults,
+        total: landscapeData.total + portraitData.total,
+        city
+      },
+      {
+        headers: {
+          'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400'
+        }
+      }
+    );
 
   } catch (error) {
     console.error('Error in Unsplash API route:', error);
