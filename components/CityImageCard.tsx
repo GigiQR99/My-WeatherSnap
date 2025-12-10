@@ -88,65 +88,25 @@ export default function CityImageCard({ cityName }: CityImageCardProps) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Function to fetch an iconic city photo from Unsplash based on city name
+    // Function to fetch an iconic city photo from Unsplash via our secure API route
     const fetchCityImage = async () => {
       setIsLoading(true);
       setError(null);
       
-      // Get the Unsplash API key from environment variables
-      const accessKey = process.env.NEXT_PUBLIC_UNSPLASH_ACCESS_KEY;
-      
-      // Check if API key is configured
-      if (!accessKey || accessKey === 'your_unsplash_access_key_here') {
-        setError('Unsplash API key not configured. Please add your key to .env file.');
-        setIsLoading(false);
-        return;
-      }
-      
       try {
-        const searchQuery = `${cityName} skyline landmark famous travel`;
+        // Call our server-side API route instead of Unsplash directly
+        const response = await fetch(`/api/unsplash?city=${encodeURIComponent(cityName)}`);
         
-        // Fetch BOTH landscape and portrait images in parallel
-        const [landscapeResponse, portraitResponse] = await Promise.all([
-          fetch(
-            `https://api.unsplash.com/search/photos?query=${encodeURIComponent(
-              searchQuery
-            )}&orientation=landscape&per_page=30&order_by=relevant`,
-            {
-              headers: {
-                'Authorization': `Client-ID ${accessKey}`,
-                'Accept-Version': 'v1'
-              }
-            }
-          ),
-          fetch(
-            `https://api.unsplash.com/search/photos?query=${encodeURIComponent(
-              searchQuery
-            )}&orientation=portrait&per_page=30&order_by=relevant`,
-            {
-              headers: {
-                'Authorization': `Client-ID ${accessKey}`,
-                'Accept-Version': 'v1'
-              }
-            }
-          )
-        ]);
-        
-        if (!landscapeResponse.ok || !portraitResponse.ok) {
-          throw new Error('Unsplash API error');
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to fetch images');
         }
         
-        const landscapeData: UnsplashSearchResponse = await landscapeResponse.json();
-        const portraitData: UnsplashSearchResponse = await portraitResponse.json();
+        const data = await response.json();
         
-        // Combine all results from both orientations
-        const allResults = [
-          ...(landscapeData.results || []),
-          ...(portraitData.results || [])
-        ];
-        
-        if (allResults.length > 0) {
-          const bestImage = selectBestImage(allResults, cityName);
+        // Check if we got results
+        if (data.results && data.results.length > 0) {
+          const bestImage = selectBestImage(data.results, cityName);
           setImageData(bestImage);
           setError(null);
         } else {
@@ -154,7 +114,7 @@ export default function CityImageCard({ cityName }: CityImageCardProps) {
         }
         
       } catch (err) {
-        console.error('Error fetching city image from Unsplash:', err);
+        console.error('Error fetching city image:', err);
         setError('Failed to load image. Using fallback.');
         
         // Fallback: Beautiful scenic default image
